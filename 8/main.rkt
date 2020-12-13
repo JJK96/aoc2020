@@ -1,5 +1,7 @@
 #lang racket
 
+(require data/either)
+
 (define machine% 
   (class object%
    (init-field code)
@@ -18,21 +20,14 @@
            [(cons 'jmp amt) (set! newpc (+ pc amt))]
            [else '()])
          (set! pc newpc)
-         (display)
          #t)))
-   (define/public (run-until-repeat [pcs (set)])
+   (define/public (run [pcs (set)])
      (if (set-member? pcs pc)
-         acc
-         (let ([newpcs (set-add pcs pc)])
-           (step)
-           (run-until-repeat newpcs))))
-   (define/public (run-until-end [pcs (set)])
-     (if (set-member? pcs pc)
-         #f ;Repeating, so return false
+         (failure acc)
          (let ([newpcs (set-add pcs pc)])
            (if (step)
-             (run-until-end newpcs)
-             acc))))))
+             (run newpcs)
+             (success acc)))))))
 
 (define (parse-instr instr)
   (match (string-split instr)
@@ -48,15 +43,16 @@
 (define (fix-code code [change 0])
   (define instr (vector-ref code change))
   (define new-instr (change-instr instr))
+  (define continuation
+    (lambda () (fix-code code (add1 change))))
   (if new-instr
     (let ([new-code (vector-copy code)])
       (vector-set! new-code change new-instr)
       (define machine (new machine% [code new-code]))
-      (define result (send machine run-until-end))
-      (if result
-        result
-        (fix-code code (add1 change))))
-    (fix-code code (add1 change))))
+      (match (send machine run)
+        [(success acc) acc]
+        [_ (continuation)]))
+    (continuation)))
 
 (define code 
   (call-with-input-file "input"
@@ -66,7 +62,7 @@
 
 (define (fun1)
   (define machine (new machine% [code code]))
-  (send machine run-until-repeat))
+  (from-failure #f (send machine run)))
 
 (define (fun2)
   (fix-code code))

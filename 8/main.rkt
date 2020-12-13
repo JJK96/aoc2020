@@ -14,35 +14,35 @@
        (let ([instr (vector-ref code pc)]
              [newpc (add1 pc)])
          (match instr
-           [(cons "acc" amt) (set! acc (+ acc amt))]
-           [(cons "jmp" amt) (set! newpc (+ pc amt))]
+           [(cons 'acc amt) (set! acc (+ acc amt))]
+           [(cons 'jmp amt) (set! newpc (+ pc amt))]
            [else '()])
          (set! pc newpc)
          (display)
          #t)))
-   (define/public (run-until-repeat [pcs '()])
-     (if (member pc pcs)
+   (define/public (run-until-repeat [pcs (set)])
+     (if (set-member? pcs pc)
          acc
-         (let ([newpcs (cons pc pcs)])
+         (let ([newpcs (set-add pcs pc)])
            (step)
            (run-until-repeat newpcs))))
-   (define/public (run-until-end [pcs '()])
-     (if (member pc pcs)
+   (define/public (run-until-end [pcs (set)])
+     (if (set-member? pcs pc)
          #f ;Repeating, so return false
-         (let ([newpcs (cons pc pcs)])
+         (let ([newpcs (set-add pcs pc)])
            (if (step)
              (run-until-end newpcs)
              acc))))))
 
 (define (parse-instr instr)
-  (define split (string-split instr))
-  (cons (list-ref split 0)
-        (string->number (list-ref split 1))))
+  (match (string-split instr)
+    [(list opcode arg) (cons (string->symbol opcode)
+                             (string->number arg))]))
 
 (define (change-instr instr)
   (match instr
-    [(cons "jmp" amt) (cons "nop" amt)]
-    [(cons "nop" amt) (cons "jmp" amt)]
+    [(cons 'jmp amt) (cons 'nop amt)]
+    [(cons 'nop amt) (cons 'jmp amt)]
     [else #f]))
 
 (define (fix-code code [change 0])
@@ -58,7 +58,11 @@
         (fix-code code (add1 change))))
     (fix-code code (add1 change))))
 
-(define code (list->vector (map parse-instr (file->lines "input"))))
+(define code 
+  (call-with-input-file "input"
+    (lambda (in) 
+      (for/vector ([line (in-lines in)])
+         (parse-instr line)))))
 
 (define (fun1)
   (define machine (new machine% [code code]))
